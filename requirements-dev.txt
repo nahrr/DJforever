@@ -1,0 +1,4 @@
+# For development: running the tests (`pytest`).
+-r requirements.txt
+pytest
+pytest-asyncio

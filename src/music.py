@@ -239,7 +239,9 @@ class Music(commands.Cog):
         if session is None:
             return
         await self._delete_now_playing(session)
-        if track is None:
+        # The track may already have ended while we were busy (e.g. it failed
+        # right away), so only post a card for what's actually playing now.
+        if track is None or session.player.current is not track:
             return
         try:
             session.now_playing_message = await session.channel.send(

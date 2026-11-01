@@ -65,6 +65,13 @@ The bot is online only while this process is running.
 
 On startup the bot logs an invite link (`Invite me to another server: …`). Open it, pick the server, and the slash commands appear there right away. No config changes are needed.
 
+## Running the tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## Building the Windows app
 
 GitHub Actions builds it on a Windows machine (`.github/workflows/build.yml`):

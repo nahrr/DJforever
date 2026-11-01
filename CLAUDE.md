@@ -13,9 +13,10 @@ Modules in `src/` import each other by bare name (`import audio`), which works b
 - `bot.py` — entry point. `setup_hook` loads the `Music` cog; `on_ready` (first time only) and `on_guild_join` sync slash commands to each server separately. Commands are never synced globally, because per-server sync is instant.
 - `config.py` — reads `.env` into a frozen `Settings` dataclass. `.env` lives in the project root from source, or next to `Jamcord.exe` when packaged (`app_dir()`). With no token, it prints a setup guide, opens the Developer Portal and prompts for one. If Discord rejects a token, `bot.py` calls `forget_token()` so the next start asks again.
 - `music.py` — the `Music` cog: slash commands, plus a `guild_id → Session` map. A `Session` holds the `GuildPlayer`, the text channel and the current now-playing message. It replaces that card whenever the player reports a track change, and leaves voice when the bot is alone.
-- `player.py` — `GuildPlayer`: one per server, owns the queue, `VoiceClient` and elapsed-time tracking. It has no Discord UI code; it reports changes through the `on_track_change(track | None)` callback. When a track ends, discord.py calls `_on_track_end` from its audio thread, which schedules `play_next` back on the event loop. Skip/stop work by calling `voice.stop()` and letting that callback advance the queue. An `asyncio.Lock` stops two commands from starting playback at once.
+- `player.py` — `GuildPlayer`: one per server, owns the queue, `VoiceClient` and elapsed-time tracking. It has no Discord UI code; it reports changes through the `on_track_change(track | None)` callback. A track that ends on its own within `_FAILED_START_SECONDS` (not skipped or stopped) counts as failed: it's put back at the front of the queue and fetched again with a fresh URL, up to `_MAX_RETRIES` times, without posting a new card. When a track ends, discord.py calls `_on_track_end` from its audio thread, which schedules `play_next` back on the event loop. Skip/stop work by calling `voice.stop()` and letting that callback advance the queue. An `asyncio.Lock` stops two commands from starting playback at once.
 - `ui.py` — all presentation: embeds (now playing, added to queue, queue) and the `PlayerControls` button view. Control buttons and `/skip` `/stop` `/leave` only work for users in the bot's voice channel.
-- `audio.py` — yt-dlp wrapper. yt-dlp is blocking, so calls run through `asyncio.to_thread`.
+- `audio.py` — yt-dlp lookups (`find_track` for metadata, `get_stream` right before playback). yt-dlp is blocking, so calls run through `asyncio.to_thread`.
+- `streaming.py` — `Stream.to_audio_source()` builds the discord.py audio source. See the yt-dlp workarounds below.
 
 ## Packaging (Windows app for non-developers)
 - `.github/workflows/build.yml` runs PyInstaller on `windows-latest` (manual run, or on `v*` tags → GitHub Release). Output: `Jamcord-windows.zip` holding `Jamcord.exe`, `_internal/`, `tools/` (ffmpeg, deno) and `packaging/START HERE.txt`.
@@ -26,9 +27,10 @@ Modules in `src/` import each other by bare name (`import audio`), which works b
 ## yt-dlp workarounds
 - yt-dlp needs a JS runtime (Deno) plus `yt-dlp-ejs` (from `yt-dlp[default]`) to solve YouTube's JS challenges. The packaged app bundles both. Without them, extraction still works for now but is deprecated and may lose formats.
 - Stream URLs expire after a few hours, so the queue stores the page URL and the stream URL is resolved right before playback (`audio.get_stream`).
-- Audio: yt-dlp prefers Opus formats, and `Stream.to_audio_source` uses `FFmpegOpusAudio(codec="copy")` when yt-dlp reports `acodec == "opus"`, so the audio passes through without re-encoding. Don't switch back to `FFmpegOpusAudio.from_probe`: its ffprobe request can't carry the headers below and gets 403.
-- yt-dlp's `http_headers` are passed to FFmpeg with `-headers`. With Deno available, yt-dlp may pick YouTube clients (e.g. `c=TVHTML5`) whose stream URLs return 403 without them. This was seen on Windows, where FFmpeg exit code 3436169992 means AVERROR_HTTP_FORBIDDEN.
-- FFmpeg reconnect flags (`audio._FFMPEG_RECONNECT`) stop playback from cutting out when YouTube drops the connection.
+- **FFmpeg never downloads from YouTube directly.** Handing it googlevideo URLs gave random 403s on Windows: FFmpeg exit code 3436169992 is AVERROR_HTTP_FORBIDDEN. Instead `streaming.ChunkedReader` fetches the bytes through yt-dlp's own HTTP client (`YoutubeDL.urlopen`) in ~10 MB `Range` requests with retries, the same way yt-dlp's downloader does. The bytes are piped into FFmpeg (`pipe=True`), which only repackages them.
+- `ChunkedReader.readinto` must never raise. discord.py's `_pipe_writer` thread doesn't catch read errors, so FFmpeg would wait forever for input. Failures are returned as end-of-stream (`failed = True`), and the player's retry takes over. 4xx errors (except 429) aren't retried with the same URL.
+- Live streams (`is_live`, or a non-http protocol such as HLS) can't be fetched in ranges, so they go to FFmpeg directly, with yt-dlp's `http_headers` and reconnect flags.
+- Audio quality: yt-dlp prefers Opus, and when `acodec == "opus"` the source uses `codec="copy"`, so Discord gets YouTube's audio without re-encoding. Don't use `FFmpegOpusAudio.from_probe`: its ffprobe request goes to YouTube directly.
 
 ## Goal
 - Play YouTube URLs / search results into Discord voice channels
@@ -66,5 +68,9 @@ Full user setup (Discord portal, invite URL) is in README.md.
 4. pip install -r requirements.txt
 5. python src/bot.py
 
-There are no tests or linter yet. Quick check that everything imports: `cd src && ../.venv/bin/python -c "import bot"`.
+## Tests
+- `pip install -r requirements-dev.txt`, then `pytest` (all tests), `pytest tests/test_player.py` (one file) or `pytest -k retry` (by name). They're fast and need no network: yt-dlp, the voice client and the HTTP server are faked.
+- `tests/conftest.py` has the shared fakes: `FakeVoice`, the `stream_lookups` and `player_with_changes` fixtures, and `finish_current_track()`, which simulates a track ending after N seconds.
+- `pytest.ini` puts `src/` on the path and enables `asyncio_mode = auto`, so tests can be plain `async def`.
+- CI: `.github/workflows/tests.yml` runs pytest on Ubuntu and Windows for every push. `build.yml` runs it before building, so a failing build is never published.
 If YouTube playback breaks, try `pip install -U yt-dlp` first (requirements.txt intentionally doesn't pin it).

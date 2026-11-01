@@ -26,7 +26,11 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements-build.txt
+        run: pip install -r requirements-build.txt -r requirements-dev.txt
+
+      # Never publish a build whose tests fail.
+      - name: Run tests
+        run: pytest
 
       - name: Build Jamcord.exe
         # --paths src: modules import each other by bare name (e.g. "import audio").

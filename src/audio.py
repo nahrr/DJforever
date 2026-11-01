@@ -5,26 +5,22 @@ with asyncio.to_thread to keep the bot's event loop responsive.
 """
 
 import asyncio
-import shlex
 from dataclasses import dataclass
 from typing import Any
 
-import discord
 import yt_dlp
+
+from streaming import Stream
 
 _YTDL_OPTIONS: dict[str, Any] = {
     # Prefer Opus: it's Discord's own codec, so the audio can be passed
-    # through without re-encoding (see Stream.to_audio_source).
+    # through without re-encoding (see streaming.Stream.to_audio_source).
     "format": "bestaudio[acodec=opus]/bestaudio/best",
     "noplaylist": True,
     "default_search": "ytsearch",  # plain text becomes a YouTube search
     "quiet": True,
     "no_warnings": True,
 }
-
-# The reconnect flags stop playback from cutting out when YouTube drops the
-# connection mid-track.
-_FFMPEG_RECONNECT = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
 
 
 class TrackNotFoundError(Exception):
@@ -54,33 +50,6 @@ class Track:
     @property
     def duration_text(self) -> str:
         return format_duration(self.duration_seconds)
-
-
-@dataclass(frozen=True)
-class Stream:
-    """A playable audio stream, plus what FFmpeg needs to fetch it."""
-
-    url: str
-    http_headers: dict[str, str]
-    is_opus: bool
-
-    def to_audio_source(self) -> discord.FFmpegOpusAudio:
-        # yt-dlp workaround: some YouTube clients hand out stream URLs that
-        # return 403 Forbidden unless the request carries the same headers
-        # yt-dlp used, so pass them on to FFmpeg.
-        before_options = _FFMPEG_RECONNECT
-        if self.http_headers:
-            headers = "".join(f"{name}: {value}\r\n" for name, value in self.http_headers.items())
-            before_options += f" -headers {shlex.quote(headers)}"
-
-        # Opus is Discord's own codec, so "copy" passes it through untouched:
-        # no quality loss from re-encoding. Anything else is encoded to Opus.
-        return discord.FFmpegOpusAudio(
-            self.url,
-            codec="copy" if self.is_opus else None,
-            before_options=before_options,
-            options="-vn",  # audio only
-        )
 
 
 def _extract_info(query: str) -> dict[str, Any]:
@@ -126,4 +95,7 @@ async def get_stream(track: Track) -> Stream:
         url=info["url"],
         http_headers=info.get("http_headers") or {},
         is_opus=info.get("acodec") == "opus",
+        filesize=info.get("filesize"),
+        # Live streams and other playlist formats (HLS) can't be fetched in byte ranges.
+        is_live=bool(info.get("is_live")) or info.get("protocol") not in ("http", "https"),
     )

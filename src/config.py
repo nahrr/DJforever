@@ -79,9 +79,18 @@ def _ask_for_token() -> str:
     print(_SETUP_GUIDE)
     webbrowser.open(_DEVELOPER_PORTAL_URL)
     while True:
-        # Pasted tokens sometimes come with spaces or quotes around them.
-        token = input("Bot token: ").strip().strip("\"'")
-        # Bot tokens have three parts separated by dots.
-        if token.count(".") == 2 and len(token) > 50:
+        token = clean_token(input("Bot token: "))
+        if looks_like_token(token):
             return token
         print("That doesn't look like a bot token. Copy it again from the Bot page and paste it here.\n")
+
+
+def clean_token(raw: str) -> str:
+    """Pasted tokens sometimes come with spaces or quotes around them."""
+    return raw.strip().strip("\"'")
+
+
+def looks_like_token(token: str) -> bool:
+    """Bot tokens have three parts separated by dots, and are long."""
+    parts = token.split(".")
+    return len(parts) == 3 and all(parts) and len(token) > 50

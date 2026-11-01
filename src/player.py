@@ -18,6 +18,12 @@ from audio import Track
 
 log = logging.getLogger(__name__)
 
+# A track that stops this soon after starting, without anyone skipping it,
+# most likely failed (e.g. YouTube refused the stream with 403 Forbidden).
+_FAILED_START_SECONDS = 3
+# How many times to retry such a track with a freshly fetched stream URL.
+_MAX_RETRIES = 2
+
 # Called with the new track when one starts, or None when the queue runs out.
 TrackChangeCallback = Callable[[Track | None], Awaitable[None]]
 
@@ -39,6 +45,10 @@ class GuildPlayer:
         self._started_at = 0.0
         self._paused_at: float | None = None
         self._paused_total = 0.0
+
+        # For retrying tracks that fail right after starting.
+        self._stopped_by_user = False
+        self._retries = 0
 
     @property
     def is_active(self) -> bool:
@@ -87,10 +97,12 @@ class GuildPlayer:
 
     def skip(self) -> None:
         # Stopping the voice client fires _on_track_end, which plays the next track.
+        self._stopped_by_user = True
         self.voice.stop()
 
     def stop(self) -> None:
         """Clear the queue and stop the current track."""
+        self._stopped_by_user = True
         self.queue.clear()
         self.voice.stop()
 
@@ -105,6 +117,13 @@ class GuildPlayer:
             if self.is_active or not self.voice.is_connected():
                 return
             previous = self.current
+            if previous is not None and self._failed_right_away() and self._retries < _MAX_RETRIES:
+                self._retries += 1
+                log.warning("'%s' stopped right after starting; retrying (%d/%d)",
+                            previous.title, self._retries, _MAX_RETRIES)
+                self.queue.appendleft(previous)
+            else:
+                self._retries = 0
             current = self.current = await self._start_next_playable()
 
         # Notify outside the lock so slow Discord calls don't hold up playback.
@@ -125,8 +144,17 @@ class GuildPlayer:
             self._started_at = time.monotonic()
             self._paused_at = None
             self._paused_total = 0.0
+            self._stopped_by_user = False
             return track
         return None
+
+    def _failed_right_away(self) -> bool:
+        """True if the current track ended on its own within seconds of starting."""
+        if self._stopped_by_user or self.current is None:
+            return False
+        duration = self.current.duration_seconds
+        is_very_short_track = duration is not None and duration <= _FAILED_START_SECONDS
+        return not is_very_short_track and self.elapsed_seconds < _FAILED_START_SECONDS
 
     def _on_track_end(self, error: Exception | None) -> None:
         # discord.py calls this from its audio thread, not the event loop,
