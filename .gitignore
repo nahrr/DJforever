@@ -6,3 +6,8 @@ __pycache__/
 venv/
 *.log
 .DS_Store
+
+# PyInstaller output
+build/
+dist/
+*.spec

@@ -1,0 +1,4 @@
+# Only needed to build the downloadable app (see .github/workflows/build.yml).
+-r requirements.txt
+pyinstaller
+pillow  # lets PyInstaller turn assets/avatar.png into the .exe icon

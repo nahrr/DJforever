@@ -1,11 +1,14 @@
 """Entry point: python src/bot.py"""
 
 import logging
+import os
+import traceback
+import webbrowser
 
 import discord
 from discord.ext import commands
 
-from config import load_settings
+import config
 from music import Music
 
 log = logging.getLogger(__name__)
@@ -32,7 +35,12 @@ class JamcordBot(commands.Bot):
         # on_ready fires again after reconnects, so only do this the first time.
         if not self._commands_synced:
             self._commands_synced = True
-            log.info("Invite me to another server: %s", self._invite_url())
+            invite_url = self._invite_url()
+            if not self.guilds:
+                log.info("I'm not in any server yet. Opening the invite page: %s", invite_url)
+                webbrowser.open(invite_url)
+            else:
+                log.info("Invite me to another server: %s", invite_url)
             for guild in self.guilds:
                 await self._sync_commands(guild)
 
@@ -65,12 +73,33 @@ class JamcordBot(commands.Bot):
         log.info("Synced %d commands to %s", len(synced), guild.name)
 
 
+def _use_bundled_tools() -> None:
+    """The packaged app ships ffmpeg and Deno in a "tools" folder; put it first on PATH so they're found."""
+    tools = config.app_dir() / "tools"
+    if tools.is_dir():
+        os.environ["PATH"] = f"{tools}{os.pathsep}{os.environ.get('PATH', '')}"
+
+
 def main() -> None:
-    settings = load_settings()
-    bot = JamcordBot()
-    # bot.run sets up logging and handles Ctrl+C shutdown for us.
-    # root_logger=True also shows our own log messages, not just discord.py's.
-    bot.run(settings.discord_token, root_logger=True)
+    _use_bundled_tools()
+    try:
+        settings = config.load_settings()
+        bot = JamcordBot()
+        print("Starting Jamcord. Keep this window open while you listen; closing it stops the bot.\n")
+        # bot.run sets up logging and handles Ctrl+C shutdown for us.
+        # root_logger=True also shows our own log messages, not just discord.py's.
+        bot.run(settings.discord_token, root_logger=True)
+    except discord.LoginFailure:
+        config.forget_token()
+        print("\nDiscord didn't accept that token. Start Jamcord again and paste a fresh one.")
+    except Exception:
+        # Print the error before the "Press Enter" prompt so it's visible.
+        traceback.print_exc()
+        print("\nJamcord crashed. The error above explains why.")
+    finally:
+        # When double-clicked, the window would close instantly and hide any message.
+        if config.is_packaged():
+            input("\nPress Enter to close...")
 
 
 # Only run when executed directly, not when imported (like a Main method).

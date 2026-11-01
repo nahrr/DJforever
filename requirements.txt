@@ -1,4 +1,4 @@
 discord.py[voice]>=2.4.0
-yt-dlp
+yt-dlp[default]  # [default] adds yt-dlp-ejs, used with Deno to solve YouTube's JS challenges
 python-dotenv
 PyNaCl

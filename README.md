@@ -2,6 +2,15 @@
 
 A private, self-hosted Discord music bot. Run it on your own machine and listen to YouTube together in a voice channel. Your bot token never leaves your computer.
 
+## Just want to use it? (Windows)
+
+1. Download `Jamcord-windows.zip` from the [latest release](https://github.com/nahrr/jamcord/releases/latest) and unzip it.
+2. Double-click `Jamcord.exe` and follow the steps in the window.
+
+There's nothing to install: Python, ffmpeg and Deno are included. On first start Jamcord walks you through creating a bot and pasting its token, then opens the invite page. `START HERE.txt` in the zip has the full steps.
+
+The rest of this README is for running from source.
+
 ## Commands
 
 | Command | What it does |
@@ -20,6 +29,7 @@ Each new track gets a now-playing card with the thumbnail, a progress bar and �
 - Python 3.10+
 - ffmpeg on your PATH (`sudo apt install ffmpeg` on Debian/Ubuntu)
 - On Debian/Ubuntu also: `sudo apt install python3-venv`
+- Recommended: [Deno](https://deno.com) on your PATH. yt-dlp uses it to solve YouTube's JavaScript challenges; without it, some formats may be missing.
 
 ## Setup
 
@@ -38,7 +48,7 @@ Each new track gets a now-playing card with the thumbnail, a progress bar and �
 cp .env.example .env
 ```
 
-Set `DISCORD_TOKEN` in `.env`. That's the only setting: on startup the bot registers its slash commands in every server it's in, so they show up right away.
+Set `DISCORD_TOKEN` in `.env`, or just start the bot and paste the token when it asks. That's the only setting: on startup the bot registers its slash commands in every server it's in, so they show up right away.
 
 ### 3. Run
 
@@ -54,6 +64,13 @@ The bot is online only while this process is running.
 ### Adding the bot to more servers
 
 On startup the bot logs an invite link (`Invite me to another server: …`). Open it, pick the server, and the slash commands appear there right away. No config changes are needed.
+
+## Building the Windows app
+
+GitHub Actions builds it on a Windows machine (`.github/workflows/build.yml`):
+
+- **Test build:** GitHub → Actions → "Build app" → "Run workflow". The zip appears under the run's Artifacts.
+- **Release:** push a version tag, e.g. `git tag v1.0.0 && git push origin v1.0.0`. The zip is published on the Releases page.
 
 ## Troubleshooting
 

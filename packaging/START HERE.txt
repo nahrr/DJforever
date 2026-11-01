@@ -1,0 +1,45 @@
+JAMCORD - your own Discord music bot
+====================================
+
+FIRST TIME (about 5 minutes)
+
+1. Double-click Jamcord.exe.
+
+   If Windows says "Windows protected your PC", click "More info",
+   then "Run anyway". This shows up because the app isn't from a
+   big company, not because something is wrong.
+
+2. A black window opens and your browser opens the Discord
+   Developer Portal. In the browser:
+     - Log in and click "New Application". Give it any name.
+     - Click "Bot" in the menu on the left.
+     - Click "Reset Token", confirm, then click "Copy".
+
+3. Go back to the black window, paste the token
+   (right-click or Ctrl+V) and press Enter.
+
+4. Your browser opens again. Pick your Discord server and
+   click "Authorize". The bot is now in your server.
+
+5. In Discord: join a voice channel and type
+       /play never gonna give you up
+
+
+EVERY TIME AFTER THAT
+
+Double-click Jamcord.exe. That's it.
+Keep the black window open while you listen. Closing it stops the bot.
+
+
+GOOD TO KNOW
+
+- Keep this whole folder together. Jamcord.exe needs the files next to it.
+- Your token is saved in a file called ".env" in this folder.
+  Never share it. Anyone with the token controls your bot.
+- To add the bot to another server, look for the line
+  "Invite me to another server: ..." in the black window
+  and open that link.
+- If the window says the token didn't work, start Jamcord again
+  and paste a new token (step 2).
+- If music suddenly stops working, download the newest
+  Jamcord version. YouTube changes things now and then.
