@@ -23,6 +23,9 @@ log = logging.getLogger(__name__)
 # How long the bot stays in a voice channel after everyone else has left.
 _ALONE_TIMEOUT_SECONDS = 60
 
+# Discord's error code for an interaction that expired or was answered elsewhere.
+_UNKNOWN_INTERACTION = 10062
+
 # Channels where slash commands can be used and messages posted.
 MessageChannel = discord.TextChannel | discord.VoiceChannel | discord.StageChannel | discord.Thread
 
@@ -51,12 +54,27 @@ class Music(commands.Cog):
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ) -> None:
         """Reply with a short message when a command crashes, instead of leaving Discord "thinking" forever."""
-        log.error("/%s failed", interaction.command.name if interaction.command else "?", exc_info=error)
+        command = interaction.command.name if interaction.command else "?"
+        original = getattr(error, "original", error)
+        if isinstance(original, discord.NotFound) and original.code == _UNKNOWN_INTERACTION:
+            # Usually a second copy of the bot (same token) answered first, or
+            # the bot was too slow to reply. Either way there's nobody to tell.
+            log.warning(
+                "/%s: Discord says this command was already handled or timed out. "
+                "Is another copy of the bot running with the same token?",
+                command,
+            )
+            return
+
+        log.error("/%s failed", command, exc_info=error)
         message = "Something went wrong. Check the bot's log for details."
-        if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
-        else:
-            await interaction.response.send_message(message, ephemeral=True)
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except discord.HTTPException:
+            pass  # the interaction can't be answered anymore; the log has the details
 
     # ---------- Commands ----------
 
