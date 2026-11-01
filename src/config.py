@@ -11,9 +11,6 @@ _PLACEHOLDER_TOKEN = "your_bot_token_here"
 @dataclass(frozen=True)
 class Settings:
     discord_token: str
-    # Optional: when set, slash commands sync to this server instantly
-    # instead of the global sync, which can take up to an hour.
-    guild_id: int | None
 
 
 def load_settings() -> Settings:
@@ -24,11 +21,4 @@ def load_settings() -> Settings:
     if not token or token == _PLACEHOLDER_TOKEN:
         raise SystemExit("DISCORD_TOKEN is missing. Copy .env.example to .env and add your bot token.")
 
-    guild_id_raw = os.getenv("GUILD_ID", "").strip()
-    if guild_id_raw and not guild_id_raw.isdigit():
-        raise SystemExit("GUILD_ID must be a numeric Discord server ID.")
-
-    return Settings(
-        discord_token=token,
-        guild_id=int(guild_id_raw) if guild_id_raw else None,
-    )
+    return Settings(discord_token=token)

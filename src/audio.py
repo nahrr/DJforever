@@ -11,7 +11,9 @@ from typing import Any
 import yt_dlp
 
 _YTDL_OPTIONS: dict[str, Any] = {
-    "format": "bestaudio/best",
+    # Prefer Opus: it's Discord's own codec, so the audio can be passed
+    # through without re-encoding (see FFmpegOpusAudio.from_probe in player.py).
+    "format": "bestaudio[acodec=opus]/bestaudio/best",
     "noplaylist": True,
     "default_search": "ytsearch",  # plain text becomes a YouTube search
     "quiet": True,
@@ -30,22 +32,29 @@ class TrackNotFoundError(Exception):
     """Raised when a URL or search query returns nothing playable."""
 
 
+def format_duration(seconds: int | None) -> str:
+    """Format seconds as m:ss or h:mm:ss. None means a live stream."""
+    if seconds is None:
+        return "live"
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}:{minutes:02}:{seconds:02}"
+    return f"{minutes}:{seconds:02}"
+
+
 @dataclass(frozen=True)
 class Track:
     title: str
     webpage_url: str
-    duration_seconds: int | None
-    requested_by: str
+    duration_seconds: int | None  # None for live streams
+    thumbnail_url: str | None
+    uploader: str | None  # the YouTube channel name
+    requester_id: int  # Discord user ID of whoever queued it
 
     @property
     def duration_text(self) -> str:
-        if self.duration_seconds is None:
-            return "live"
-        minutes, seconds = divmod(self.duration_seconds, 60)
-        hours, minutes = divmod(minutes, 60)
-        if hours:
-            return f"{hours}:{minutes:02}:{seconds:02}"
-        return f"{minutes}:{seconds:02}"
+        return format_duration(self.duration_seconds)
 
 
 def _extract_info(query: str) -> dict[str, Any]:
@@ -65,7 +74,7 @@ def _extract_info(query: str) -> dict[str, Any]:
     return info
 
 
-async def find_track(query: str, requested_by: str) -> Track:
+async def find_track(query: str, requester_id: int) -> Track:
     """Look up a YouTube URL or search query and return its metadata."""
     info = await asyncio.to_thread(_extract_info, query)
     duration = info.get("duration")
@@ -73,7 +82,9 @@ async def find_track(query: str, requested_by: str) -> Track:
         title=info.get("title", "Unknown title"),
         webpage_url=info.get("webpage_url") or query,
         duration_seconds=int(duration) if duration else None,
-        requested_by=requested_by,
+        thumbnail_url=info.get("thumbnail"),
+        uploader=info.get("uploader") or info.get("channel"),
+        requester_id=requester_id,
     )
 
 
