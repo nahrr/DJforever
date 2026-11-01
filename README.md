@@ -1,13 +1,13 @@
-# Jamcord
+# DJ Forever
 
 A private, self-hosted Discord music bot. Run it on your own machine and listen to YouTube together in a voice channel. Your bot token never leaves your computer.
 
 ## Just want to use it? (Windows)
 
-1. Download `Jamcord-windows.zip` from the [latest release](https://github.com/nahrr/jamcord/releases/latest) and unzip it.
-2. Double-click `Jamcord.exe` and follow the steps in the window.
+1. Download `DJForever-windows.zip` from the [latest release](https://github.com/nahrr/djforever/releases/latest) and unzip it.
+2. Double-click `DJForever.exe` and follow the steps in the window.
 
-There's nothing to install: Python, ffmpeg and Deno are included. On first start Jamcord walks you through creating a bot and pasting its token, then opens the invite page. `START HERE.txt` in the zip has the full steps.
+There's nothing to install: Python, ffmpeg and Deno are included. On first start DJ Forever walks you through creating a bot and pasting its token, then opens the invite page. `START HERE.txt` in the zip has the full steps.
 
 The rest of this README is for running from source.
 

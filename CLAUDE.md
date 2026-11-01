@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# Jamcord
+# DJ Forever
 
 Private self-hosted Discord music bot (Python).
 Runs locally so a small group can listen to the same YouTube tracks together.
@@ -11,7 +11,7 @@ Runs locally so a small group can listen to the same YouTube tracks together.
 Modules in `src/` import each other by bare name (`import audio`), which works because `python src/bot.py` puts `src/` on the import path.
 
 - `bot.py` — entry point. `setup_hook` loads the `Music` cog; `on_ready` (first time only) and `on_guild_join` sync slash commands to each server separately. Commands are never synced globally, because per-server sync is instant.
-- `config.py` — reads `.env` into a frozen `Settings` dataclass. `.env` lives in the project root from source, or next to `Jamcord.exe` when packaged (`app_dir()`). With no token, it prints a setup guide, opens the Developer Portal and prompts for one. If Discord rejects a token, `bot.py` calls `forget_token()` so the next start asks again.
+- `config.py` — reads `.env` into a frozen `Settings` dataclass. `.env` lives in the project root from source, or next to `DJForever.exe` when packaged (`app_dir()`). With no token, it prints a setup guide, opens the Developer Portal and prompts for one. If Discord rejects a token, `bot.py` calls `forget_token()` so the next start asks again.
 - `music.py` — the `Music` cog: slash commands, plus a `guild_id → Session` map. A `Session` holds the `GuildPlayer`, the text channel and the current now-playing message. It replaces that card whenever the player reports a track change, and leaves voice when the bot is alone.
 - `player.py` — `GuildPlayer`: one per server, owns the queue, `VoiceClient` and elapsed-time tracking. It has no Discord UI code; it reports changes through the `on_track_change(track | None)` callback. A track that ends on its own within `_FAILED_START_SECONDS` (not skipped or stopped) counts as failed: it's put back at the front of the queue and fetched again with a fresh URL, up to `_MAX_RETRIES` times, without posting a new card. When a track ends, discord.py calls `_on_track_end` from its audio thread, which schedules `play_next` back on the event loop. Skip/stop work by calling `voice.stop()` and letting that callback advance the queue. An `asyncio.Lock` stops two commands from starting playback at once.
 - `ui.py` — all presentation: embeds (now playing, added to queue, queue) and the `PlayerControls` button view. Control buttons and `/skip` `/stop` `/leave` only work for users in the bot's voice channel.
@@ -19,9 +19,9 @@ Modules in `src/` import each other by bare name (`import audio`), which works b
 - `streaming.py` — `Stream.to_audio_source()` builds the discord.py audio source. See the yt-dlp workarounds below.
 
 ## Packaging (Windows app for non-developers)
-- `.github/workflows/build.yml` runs PyInstaller on `windows-latest` (manual run, or on `v*` tags → GitHub Release). Output: `Jamcord-windows.zip` holding `Jamcord.exe`, `_internal/`, `tools/` (ffmpeg, deno) and `packaging/START HERE.txt`.
+- `.github/workflows/build.yml` runs PyInstaller on `windows-latest` (manual run, or on `v*` tags → GitHub Release). Output: `DJForever-windows.zip` holding `DJForever.exe`, `_internal/`, `tools/` (ffmpeg, deno) and `packaging/START HERE.txt`.
 - At startup `bot.py` puts `<app dir>/tools` first on PATH, so the bundled ffmpeg and Deno are found. In packaged mode it also waits for Enter before closing, so errors stay readable.
-- Build deps are in `requirements-build.txt`. To test-build locally (Linux binary, but the same bundling): `.venv/bin/pyinstaller --noconfirm --name Jamcord --paths src --collect-all davey src/bot.py`.
+- Build deps are in `requirements-build.txt`. To test-build locally (Linux binary, but the same bundling): `.venv/bin/pyinstaller --noconfirm --name DJForever --paths src --collect-all davey src/bot.py`.
 - Keep `packaging/START HERE.txt` in plain non-technical language; it's written for someone who isn't a developer.
 
 ## yt-dlp workarounds

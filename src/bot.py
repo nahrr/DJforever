@@ -14,7 +14,7 @@ from music import Music
 log = logging.getLogger(__name__)
 
 
-class JamcordBot(commands.Bot):
+class DJForeverBot(commands.Bot):
     def __init__(self) -> None:
         # Default intents cover guilds and voice states, which is all a
         # slash-command music bot needs (no message content).
@@ -84,18 +84,18 @@ def main() -> None:
     _use_bundled_tools()
     try:
         settings = config.load_settings()
-        bot = JamcordBot()
-        print("Starting Jamcord. Keep this window open while you listen; closing it stops the bot.\n")
+        bot = DJForeverBot()
+        print("Starting DJ Forever. Keep this window open while you listen; closing it stops the bot.\n")
         # bot.run sets up logging and handles Ctrl+C shutdown for us.
         # root_logger=True also shows our own log messages, not just discord.py's.
         bot.run(settings.discord_token, root_logger=True)
     except discord.LoginFailure:
         config.forget_token()
-        print("\nDiscord didn't accept that token. Start Jamcord again and paste a fresh one.")
+        print("\nDiscord didn't accept that token. Start DJ Forever again and paste a fresh one.")
     except Exception:
         # Print the error before the "Press Enter" prompt so it's visible.
         traceback.print_exc()
-        print("\nJamcord crashed. The error above explains why.")
+        print("\nDJ Forever crashed. The error above explains why.")
     finally:
         # When double-clicked, the window would close instantly and hide any message.
         if config.is_packaged():

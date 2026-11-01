@@ -1,9 +1,9 @@
-JAMCORD - your own Discord music bot
-====================================
+DJ FOREVER - your own Discord music bot
+=======================================
 
 FIRST TIME (about 5 minutes)
 
-1. Double-click Jamcord.exe.
+1. Double-click DJForever.exe.
 
    If Windows says "Windows protected your PC", click "More info",
    then "Run anyway". This shows up because the app isn't from a
@@ -27,19 +27,19 @@ FIRST TIME (about 5 minutes)
 
 EVERY TIME AFTER THAT
 
-Double-click Jamcord.exe. That's it.
+Double-click DJForever.exe. That's it.
 Keep the black window open while you listen. Closing it stops the bot.
 
 
 GOOD TO KNOW
 
-- Keep this whole folder together. Jamcord.exe needs the files next to it.
+- Keep this whole folder together. DJForever.exe needs the files next to it.
 - Your token is saved in a file called ".env" in this folder.
   Never share it. Anyone with the token controls your bot.
 - To add the bot to another server, look for the line
   "Invite me to another server: ..." in the black window
   and open that link.
-- If the window says the token didn't work, start Jamcord again
+- If the window says the token didn't work, start DJ Forever again
   and paste a new token (step 2).
 - If music suddenly stops working, download the newest
-  Jamcord version. YouTube changes things now and then.
+  DJ Forever version. YouTube changes things now and then.

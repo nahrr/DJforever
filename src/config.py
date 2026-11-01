@@ -2,7 +2,7 @@
 
 Settings live in a .env file:
 - when running from source: in the project root
-- when running the packaged Jamcord.exe: next to the .exe
+- when running the packaged DJForever.exe: next to the .exe
 """
 
 import os
@@ -19,7 +19,7 @@ _DEVELOPER_PORTAL_URL = "https://discord.com/developers/applications"
 
 _SETUP_GUIDE = f"""
 ==============================================================
-  Welcome to Jamcord! Let's connect your Discord bot.
+  Welcome to DJ Forever! Let's connect your Discord bot.
 ==============================================================
 
 Your browser is opening the Discord Developer Portal:
@@ -38,12 +38,12 @@ class Settings:
 
 
 def is_packaged() -> bool:
-    """True when running as the bundled Jamcord.exe (built with PyInstaller)."""
+    """True when running as the bundled DJForever.exe (built with PyInstaller)."""
     return getattr(sys, "frozen", False)
 
 
 def app_dir() -> Path:
-    """The folder Jamcord runs from: next to the .exe, or the project root."""
+    """The folder DJ Forever runs from: next to the .exe, or the project root."""
     if is_packaged():
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
