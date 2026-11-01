@@ -7,13 +7,19 @@ import audio
 
 
 class FakeYoutubeDL:
-    """Returns whatever `result` is set to, like yt_dlp.YoutubeDL.extract_info would."""
+    """Returns whatever `result` is set to, like yt_dlp.YoutubeDL.extract_info would.
+
+    `clients_used` records the YouTube clients each lookup asked for (None =
+    yt-dlp's defaults). `failing_clients` makes lookups with those clients fail.
+    """
 
     result: dict | None = None
     error: Exception | None = None
+    failing_clients: list[list[str] | None] = []
+    clients_used: list[list[str] | None] = []
 
     def __init__(self, options) -> None:
-        pass
+        self.clients = options.get("extractor_args", {}).get("youtube", {}).get("player_client")
 
     def __enter__(self):
         return self
@@ -22,14 +28,16 @@ class FakeYoutubeDL:
         pass
 
     def extract_info(self, query, download):
-        if FakeYoutubeDL.error:
-            raise FakeYoutubeDL.error
+        FakeYoutubeDL.clients_used.append(self.clients)
+        if FakeYoutubeDL.error or self.clients in FakeYoutubeDL.failing_clients:
+            raise FakeYoutubeDL.error or yt_dlp.utils.DownloadError("not available for this client")
         return FakeYoutubeDL.result
 
 
 @pytest.fixture(autouse=True)
 def fake_ytdl(monkeypatch):
     FakeYoutubeDL.result, FakeYoutubeDL.error = None, None
+    FakeYoutubeDL.failing_clients, FakeYoutubeDL.clients_used = [], []
     monkeypatch.setattr(audio.yt_dlp, "YoutubeDL", FakeYoutubeDL)
 
 
@@ -106,3 +114,32 @@ async def test_get_stream_detects_live_streams(live_info):
     track = await audio.find_track("live", requester_id=1)
 
     assert (await audio.get_stream(track)).is_live
+
+
+async def test_lookups_prefer_the_visionos_client():
+    FakeYoutubeDL.result = VIDEO
+
+    await audio.find_track("song", requester_id=1)
+
+    assert FakeYoutubeDL.clients_used == [["visionos"]]
+
+
+async def test_falls_back_to_default_clients_when_preferred_one_fails():
+    FakeYoutubeDL.result = VIDEO
+    FakeYoutubeDL.failing_clients = [["visionos"]]
+
+    track = await audio.find_track("age restricted song", requester_id=1)
+
+    assert track.title == "Song"
+    assert FakeYoutubeDL.clients_used == [["visionos"], None]
+
+
+async def test_retries_switch_to_default_clients_on_the_last_attempt():
+    FakeYoutubeDL.result = VIDEO
+    track = await audio.find_track("song", requester_id=1)
+    FakeYoutubeDL.clients_used.clear()
+
+    for attempt in range(3):
+        await audio.get_stream(track, attempt=attempt)
+
+    assert FakeYoutubeDL.clients_used == [["visionos"], ["visionos"], None]

@@ -65,6 +65,17 @@ async def test_track_failing_right_away_is_retried_with_a_fresh_stream(player_wi
     assert changes == [song]  # no new card for a retry
 
 
+async def test_retries_count_up_the_attempt_number(player_with_changes, stream_lookup_attempts):
+    # audio.get_stream uses the attempt number to switch YouTube clients.
+    player, _ = player_with_changes
+    await player.add(make_track("Flaky"))
+
+    for _ in range(player_module._MAX_RETRIES):
+        await finish_current_track(player, after_seconds=0.5)
+
+    assert stream_lookup_attempts == list(range(player_module._MAX_RETRIES + 1))
+
+
 async def test_gives_up_after_max_retries_and_moves_on(player_with_changes, stream_lookups):
     player, changes = player_with_changes
     song, next_song = make_track("Broken"), make_track("Next")
@@ -132,10 +143,10 @@ async def test_unplayable_track_is_skipped(player_with_changes, monkeypatch):
     broken, good = make_track("Broken"), make_track("Good")
     real_get_stream = audio.get_stream
 
-    async def get_stream(track):
+    async def get_stream(track, attempt=0):
         if track is broken:
             raise audio.TrackNotFoundError("gone")
-        return await real_get_stream(track)
+        return await real_get_stream(track, attempt)
 
     monkeypatch.setattr(audio, "get_stream", get_stream)
     player.queue.extend([broken, good])

@@ -135,7 +135,7 @@ class GuildPlayer:
         while self.queue:
             track = self.queue.popleft()
             try:
-                stream = await audio.get_stream(track)
+                stream = await audio.get_stream(track, attempt=self._retries)
             except audio.TrackNotFoundError:
                 log.warning("Skipping unplayable track: %s", track.title)
                 continue

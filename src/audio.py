@@ -22,6 +22,15 @@ _YTDL_OPTIONS: dict[str, Any] = {
     "no_warnings": True,
 }
 
+# yt-dlp workaround: which YouTube "client" yt-dlp pretends to be decides
+# which stream URLs it gets. With a JS runtime (Deno) available, yt-dlp's
+# defaults include TV clients whose URLs often return 403 Forbidden. The
+# visionos client doesn't need Deno and has been reliable, so try it first.
+# The first retry tries it again with a fresh URL; the last one falls back to
+# yt-dlp's default clients (None = yt-dlp decides).
+_PREFERRED_CLIENTS = ["visionos"]
+_CLIENTS_BY_ATTEMPT: tuple[list[str] | None, ...] = (_PREFERRED_CLIENTS, _PREFERRED_CLIENTS, None)
+
 
 class TrackNotFoundError(Exception):
     """Raised when a URL or search query returns nothing playable."""
@@ -52,8 +61,25 @@ class Track:
         return format_duration(self.duration_seconds)
 
 
-def _extract_info(query: str) -> dict[str, Any]:
-    with yt_dlp.YoutubeDL(_YTDL_OPTIONS) as ydl:
+def _extract_info(query: str, clients: list[str] | None = _PREFERRED_CLIENTS) -> dict[str, Any]:
+    """Look up a URL or search with yt-dlp.
+
+    If the given clients can't handle the video (some are age-restricted or
+    region-locked for one client but not another), fall back to yt-dlp's defaults.
+    """
+    try:
+        return _extract_info_with(query, clients)
+    except TrackNotFoundError:
+        if clients is None:
+            raise
+        return _extract_info_with(query, None)
+
+
+def _extract_info_with(query: str, clients: list[str] | None) -> dict[str, Any]:
+    options = dict(_YTDL_OPTIONS)
+    if clients:
+        options["extractor_args"] = {"youtube": {"player_client": clients}}
+    with yt_dlp.YoutubeDL(options) as ydl:
         try:
             info = ydl.extract_info(query, download=False)
         except yt_dlp.utils.DownloadError as error:
@@ -83,14 +109,18 @@ async def find_track(query: str, requester_id: int) -> Track:
     )
 
 
-async def get_stream(track: Track) -> Stream:
+async def get_stream(track: Track, attempt: int = 0) -> Stream:
     """Resolve the audio stream for a track.
 
     yt-dlp workaround: YouTube stream URLs expire after a few hours, so we
     resolve the stream right before playing instead of when the track is
     queued. Otherwise tracks deep in a long queue could fail to play.
+
+    `attempt` counts retries after a failed start; later attempts use other
+    YouTube clients (see _CLIENTS_BY_ATTEMPT).
     """
-    info = await asyncio.to_thread(_extract_info, track.webpage_url)
+    clients = _CLIENTS_BY_ATTEMPT[min(attempt, len(_CLIENTS_BY_ATTEMPT) - 1)]
+    info = await asyncio.to_thread(_extract_info, track.webpage_url, clients)
     return Stream(
         url=info["url"],
         http_headers=info.get("http_headers") or {},

@@ -59,12 +59,19 @@ def make_track(title: str = "Song", duration: int | None = 200, **overrides) -> 
 
 
 @pytest.fixture
-def stream_lookups(monkeypatch) -> list[Track]:
+def stream_lookup_attempts() -> list[int]:
+    """The `attempt` number of each stream lookup, in order."""
+    return []
+
+
+@pytest.fixture
+def stream_lookups(monkeypatch, stream_lookup_attempts) -> list[Track]:
     """Replaces the YouTube lookup with a fake; returns the list of tracks looked up."""
     looked_up: list[Track] = []
 
-    async def fake_get_stream(track: Track) -> FakeStream:
+    async def fake_get_stream(track: Track, attempt: int = 0) -> FakeStream:
         looked_up.append(track)
+        stream_lookup_attempts.append(attempt)
         return FakeStream()
 
     monkeypatch.setattr(audio, "get_stream", fake_get_stream)
