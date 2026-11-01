@@ -116,16 +116,12 @@ class GuildPlayer:
         while self.queue:
             track = self.queue.popleft()
             try:
-                stream_url = await audio.get_stream_url(track)
+                stream = await audio.get_stream(track)
             except audio.TrackNotFoundError:
                 log.warning("Skipping unplayable track: %s", track.title)
                 continue
 
-            # from_probe checks the stream's codec first. YouTube usually serves
-            # Opus, which is copied straight through: no quality loss from
-            # re-encoding. Anything else is encoded to Opus at the source's bitrate.
-            source = await discord.FFmpegOpusAudio.from_probe(stream_url, **audio.FFMPEG_OPTIONS)
-            self.voice.play(source, after=self._on_track_end)
+            self.voice.play(stream.to_audio_source(), after=self._on_track_end)
             self._started_at = time.monotonic()
             self._paused_at = None
             self._paused_total = 0.0

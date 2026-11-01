@@ -5,14 +5,16 @@ with asyncio.to_thread to keep the bot's event loop responsive.
 """
 
 import asyncio
+import shlex
 from dataclasses import dataclass
 from typing import Any
 
+import discord
 import yt_dlp
 
 _YTDL_OPTIONS: dict[str, Any] = {
     # Prefer Opus: it's Discord's own codec, so the audio can be passed
-    # through without re-encoding (see FFmpegOpusAudio.from_probe in player.py).
+    # through without re-encoding (see Stream.to_audio_source).
     "format": "bestaudio[acodec=opus]/bestaudio/best",
     "noplaylist": True,
     "default_search": "ytsearch",  # plain text becomes a YouTube search
@@ -20,12 +22,9 @@ _YTDL_OPTIONS: dict[str, Any] = {
     "no_warnings": True,
 }
 
-# Passed to FFmpeg when streaming. The reconnect flags stop playback from
-# cutting out when YouTube drops the connection mid-track.
-FFMPEG_OPTIONS = {
-    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-    "options": "-vn",  # audio only
-}
+# The reconnect flags stop playback from cutting out when YouTube drops the
+# connection mid-track.
+_FFMPEG_RECONNECT = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
 
 
 class TrackNotFoundError(Exception):
@@ -55,6 +54,33 @@ class Track:
     @property
     def duration_text(self) -> str:
         return format_duration(self.duration_seconds)
+
+
+@dataclass(frozen=True)
+class Stream:
+    """A playable audio stream, plus what FFmpeg needs to fetch it."""
+
+    url: str
+    http_headers: dict[str, str]
+    is_opus: bool
+
+    def to_audio_source(self) -> discord.FFmpegOpusAudio:
+        # yt-dlp workaround: some YouTube clients hand out stream URLs that
+        # return 403 Forbidden unless the request carries the same headers
+        # yt-dlp used, so pass them on to FFmpeg.
+        before_options = _FFMPEG_RECONNECT
+        if self.http_headers:
+            headers = "".join(f"{name}: {value}\r\n" for name, value in self.http_headers.items())
+            before_options += f" -headers {shlex.quote(headers)}"
+
+        # Opus is Discord's own codec, so "copy" passes it through untouched:
+        # no quality loss from re-encoding. Anything else is encoded to Opus.
+        return discord.FFmpegOpusAudio(
+            self.url,
+            codec="copy" if self.is_opus else None,
+            before_options=before_options,
+            options="-vn",  # audio only
+        )
 
 
 def _extract_info(query: str) -> dict[str, Any]:
@@ -88,12 +114,16 @@ async def find_track(query: str, requester_id: int) -> Track:
     )
 
 
-async def get_stream_url(track: Track) -> str:
-    """Resolve a direct audio stream URL for a track.
+async def get_stream(track: Track) -> Stream:
+    """Resolve the audio stream for a track.
 
     yt-dlp workaround: YouTube stream URLs expire after a few hours, so we
     resolve the stream right before playing instead of when the track is
     queued. Otherwise tracks deep in a long queue could fail to play.
     """
     info = await asyncio.to_thread(_extract_info, track.webpage_url)
-    return info["url"]
+    return Stream(
+        url=info["url"],
+        http_headers=info.get("http_headers") or {},
+        is_opus=info.get("acodec") == "opus",
+    )

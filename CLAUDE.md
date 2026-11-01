@@ -18,16 +18,17 @@ Modules in `src/` import each other by bare name (`import audio`), which works b
 - `audio.py` — yt-dlp wrapper. yt-dlp is blocking, so calls run through `asyncio.to_thread`.
 
 ## Packaging (Windows app for non-developers)
-- `.github/workflows/build.yml` runs PyInstaller on `windows-latest` (manual run, or on `v*` tags → GitHub Release). Output: `Jamcord-windows.zip` holding `Jamcord.exe`, `_internal/`, `tools/` (ffmpeg, ffprobe, deno) and `packaging/START HERE.txt`.
+- `.github/workflows/build.yml` runs PyInstaller on `windows-latest` (manual run, or on `v*` tags → GitHub Release). Output: `Jamcord-windows.zip` holding `Jamcord.exe`, `_internal/`, `tools/` (ffmpeg, deno) and `packaging/START HERE.txt`.
 - At startup `bot.py` puts `<app dir>/tools` first on PATH, so the bundled ffmpeg and Deno are found. In packaged mode it also waits for Enter before closing, so errors stay readable.
 - Build deps are in `requirements-build.txt`. To test-build locally (Linux binary, but the same bundling): `.venv/bin/pyinstaller --noconfirm --name Jamcord --paths src --collect-all davey src/bot.py`.
 - Keep `packaging/START HERE.txt` in plain non-technical language; it's written for someone who isn't a developer.
 
 ## yt-dlp workarounds
 - yt-dlp needs a JS runtime (Deno) plus `yt-dlp-ejs` (from `yt-dlp[default]`) to solve YouTube's JS challenges. The packaged app bundles both. Without them, extraction still works for now but is deprecated and may lose formats.
-- Stream URLs expire after a few hours, so the queue stores the page URL and the stream URL is resolved right before playback (`audio.get_stream_url`).
-- Audio: yt-dlp prefers Opus formats and the player uses `FFmpegOpusAudio.from_probe`, so YouTube's Opus is passed through to Discord without re-encoding. Other codecs are re-encoded at the source's bitrate (`from_probe` picks it; it doesn't accept a `bitrate` argument).
-- FFmpeg reconnect flags (`audio.FFMPEG_OPTIONS`) stop playback from cutting out when YouTube drops the connection.
+- Stream URLs expire after a few hours, so the queue stores the page URL and the stream URL is resolved right before playback (`audio.get_stream`).
+- Audio: yt-dlp prefers Opus formats, and `Stream.to_audio_source` uses `FFmpegOpusAudio(codec="copy")` when yt-dlp reports `acodec == "opus"`, so the audio passes through without re-encoding. Don't switch back to `FFmpegOpusAudio.from_probe`: its ffprobe request can't carry the headers below and gets 403.
+- yt-dlp's `http_headers` are passed to FFmpeg with `-headers`. With Deno available, yt-dlp may pick YouTube clients (e.g. `c=TVHTML5`) whose stream URLs return 403 without them. This was seen on Windows, where FFmpeg exit code 3436169992 means AVERROR_HTTP_FORBIDDEN.
+- FFmpeg reconnect flags (`audio._FFMPEG_RECONNECT`) stop playback from cutting out when YouTube drops the connection.
 
 ## Goal
 - Play YouTube URLs / search results into Discord voice channels
